@@ -1,0 +1,18 @@
+module PackDropLB {
+
+extern module DistBaseLB;
+initnode void lbinit(void);
+
+group [migratable] PackDropLB : DistBaseLB {
+  entry void PackDropLB(const CkLBOptions &);  
+  entry [expedited] void PackAck(int pack_id, int from, int psize, bool force);
+  entry [expedited] void RecvAck(int pack_id, int to, bool success);
+  entry void EndStep();
+  entry void GossipLoadInfo(int req_hop, int pe, int n, int pe_no[n], double load[n]);
+  entry void First_Barrier();
+  entry [reductiontarget] void Load_Setup(double total_load);
+  entry [reductiontarget] void Chare_Setup(int count);
+  entry [reductiontarget] void Final_Barrier();
+};
+
+};
