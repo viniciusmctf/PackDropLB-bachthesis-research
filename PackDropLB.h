@@ -31,6 +31,7 @@ class PackDropLB : public CBase_PackDropLB {
     void First_Barrier();
     void GossipLoadInfo(int, int, int, int[], double[]);
     void DoneGossip();
+    void DetailsRedux(int migrations);
     void Final_Barrier();
 
  private:
@@ -40,6 +41,7 @@ class PackDropLB : public CBase_PackDropLB {
     void PackSizeDef();
     void LoadBalance();
     void SendLoadInfo();
+    void ShowMigrationDetails();
     void ForcedPackSend(int pack_id, bool force);
     void PackSend(int pack_id = 0, int one_time = 0);
     void Strategy(const DistBaseLB::LDStats* const stats);

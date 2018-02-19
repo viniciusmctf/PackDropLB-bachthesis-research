@@ -164,7 +164,8 @@ int PackDropLB::FindReceiver() {
 
 void PackDropLB::PackSend(int pack_id, int one_time) {
     tries++;
-    if (tries >= 8) {
+    if (tries >= 4) {
+        if (_lb_args.debug()) CkPrintf("[%d] No receivers found\n", CkMyPe());
         EndStep();
         return;
     }
@@ -194,10 +195,10 @@ void PackDropLB::PackSend(int pack_id, int one_time) {
 void PackDropLB::PackAck(int id, int from, int psize, bool force) {
     // Sends back the info, with the apropriate bool related to wheter it's accepted or not
     // If the migration is forced, it will be accepted.
-    bool ack = ((my_load + pack_load*psize < avg_load*(1+threshold)) || force);
+    bool ack = ((my_load + pack_load < avg_load*(1+threshold)) || force);
     if (ack) {
         migrates_expected+=psize;
-        my_load += pack_load*psize;
+        my_load += pack_load;
     }
     thisProxy[from].RecvAck(id, CkMyPe(), ack);
 }
@@ -274,7 +275,24 @@ void PackDropLB::EndStep() {
 
 void PackDropLB::Final_Barrier() {
     //CkPrintf("[%d] This core has reach the end of program\n", CkMyPe());
+    if (_lb_args.debug()) {
+      ShowMigrationDetails();
+    }
     ProcessMigrationDecision(msg);
+}
+
+void PackDropLB::ShowMigrationDetails() {
+  if (total_migrates > 0)
+    CkPrintf("[%d] migrating %d elements\n", CkMyPe(), total_migrates);
+  if (migrates_expected > 0) 
+    CkPrintf("[%d] receiving %d elements\n", CkMyPe(), migrates_expected);
+  
+  CkCallback cb (CkReductionTarget(PackDropLB, DetailsRedux), thisProxy);
+  contribute(sizeof(int), &total_migrates, CkReduction::sum_int, cb);
+}
+
+void PackDropLB::DetailsRedux(int migs) {
+  if (CkMyPe() <= 0) CkPrintf("[%d] Total number of migrations is %d\n", CkMyPe(), migs);
 }
 
 /*

@@ -13,6 +13,7 @@ group [migratable] PackDropLB : DistBaseLB {
   entry [reductiontarget] void Load_Setup(double total_load);
   entry [reductiontarget] void Chare_Setup(int count);
   entry [reductiontarget] void Final_Barrier();
+  entry [reductiontarget] void DetailsRedux(int migs);
 };
 
 };
