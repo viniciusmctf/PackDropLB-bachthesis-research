@@ -32,20 +32,27 @@ void PackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     if (CkMyPe() == 0) {
         CkPrintf("In PackDrop Strategy\n");
     }
+
     lb_started = false;
     my_stats = stats;
     threshold = 0.05;
     lb_end = false;
     tries = 0;
     info_send_count = 0;
+
     packs.clear();
+    pe_no.clear();
+    loads.clear();
+    receivers.clear();
     pack_count = 0;
     total_migrates = 0;
     acks_needed = 0;
+    
     kMaxGossipMsgCount = 2 * CmiLog2(CkNumPes());
     kPartialInfoCount = -1;
-    receivers.clear();
+    
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
+    local_tasks.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
     
     //local_tasks.reserve(my_stat->n_objs);
@@ -276,11 +283,12 @@ void PackDropLB::EndStep() {
 void PackDropLB::Final_Barrier() {
     //CkPrintf("[%d] This core has reach the end of program\n", CkMyPe());
     if (_lb_args.debug()) {
-      ShowMigrationDetails();
+      //ShowMigrationDetails();
     }
     ProcessMigrationDecision(msg);
 }
 
+// TODO
 void PackDropLB::ShowMigrationDetails() {
   if (total_migrates > 0)
     CkPrintf("[%d] migrating %d elements\n", CkMyPe(), total_migrates);
