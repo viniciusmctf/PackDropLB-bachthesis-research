@@ -13,7 +13,7 @@
 #include <algorithm>
 
 #ifndef PD_LB_MIG_COST
-#define PD_LB_PD_LB_MIG_COST 1.3
+#define PD_LB_MIG_COST 8.0
 #endif
   
 CreateLBFunc_Def(PackDropMigCostLB, "The distributed pack-based load balancer accounting for migration costs");
@@ -183,6 +183,14 @@ void PackDropMigCostLB::PackSend(int pack_id, int one_time) {
     }
 }
 
+double PackDropMigCostLB::RecalculateLoad(int n_tasks) {
+  double new_load = pack_load;
+  if (n_tasks > 1) {
+    new_load += new_load*(n_tasks*PD_LB_MIG_COST)/64.0;
+  }
+  return new_load;
+}
+
 /*
  * This is the main method modified in this version.
  * Migration costs are applyed by multiplying the number of tasks coming in a pack.
@@ -191,10 +199,10 @@ void PackDropMigCostLB::PackSend(int pack_id, int one_time) {
  * The weight of PD_LB_MIG_COST must be evaluated from application to application.
  */
 void PackDropMigCostLB::PackAck(int id, int from, int psize, bool force) {
-    bool ack = ((my_load + pack_load < avg_load*(1+threshold)) || force);
+    bool ack = ((my_load + RecalculateLoad(psize) < avg_load*(1+threshold)) || force);
     if (ack) {
         migrates_expected+=psize;
-        my_load += pack_load*(psize*PD_LB_MIG_COST); 
+        my_load += RecalculateLoad(psize); 
     }
     thisProxy[from].RecvAck(id, CkMyPe(), ack);
 }

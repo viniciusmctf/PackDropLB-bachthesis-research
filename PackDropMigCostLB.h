@@ -46,6 +46,7 @@ class PackDropMigCostLB : public CBase_PackDropMigCostLB {
     void PackSend(int pack_id = 0, int one_time = 0);
     void Strategy(const DistBaseLB::LDStats* const stats);
     bool QueryBalanceNow(int step) { return true; };
+    double RecalculateLoad(int n_recs);
     void CalculateReceivers();
     int FindReceiver();
 
