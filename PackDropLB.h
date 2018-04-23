@@ -47,6 +47,7 @@ class PackDropLB : public CBase_PackDropLB {
     void Strategy(const DistBaseLB::LDStats* const stats);
     bool QueryBalanceNow(int step) { return true; };
     void CalculateReceivers();
+    void CalculateCumulateDistribution();
     int FindReceiver();
 
     // Atributes
@@ -68,6 +69,7 @@ class PackDropLB : public CBase_PackDropLB {
     int done;
     int pack_count;
     int req_hop;
+    int underloaded_pe_count;
     int info_send_count;
     int rec_count;
     LBMigrateMsg* msg;
@@ -76,6 +78,7 @@ class PackDropLB : public CBase_PackDropLB {
     std::list<int> non_receiving_chares;
     std::vector<int> receivers;
     std::vector<int> pe_no;
+    std::vector<double> distribution;
     std::vector<double> loads;
     std::priority_queue<Element, std::deque<Element>> local_tasks;
     std::unordered_map<int, std::vector<int>> packs;

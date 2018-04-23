@@ -124,7 +124,9 @@ void PackDropLB::LoadBalance() {
         contribute(CkCallback(CkReductionTarget(PackDropLB, Final_Barrier), thisProxy));
         return;
     }
-    CalculateReceivers();
+    underloaded_pe_count = pe_no.size();
+    CalculateCumulateDistribution();
+    //CalculateReceivers();
     PackSend();
 }
 
@@ -138,20 +140,16 @@ void PackDropLB::CalculateReceivers() {
     }
 }
 
+
+// As seen in DistributedLB::PickRandReceiverPeIdx
 int PackDropLB::FindReceiver() {
-    int rec;
-    if (receivers.size() < CkNumPes()/4) {
-        rec = rand()%CkNumPes();
-        while (rec == CkMyPe()) {
-            rec = rand()%CkNumPes();
-        }
-    } else {
-        rec = receivers[rand()%receivers.size()];
-        while (rec == CkMyPe()) {
-            rec = receivers[rand()%receivers.size()];
-        } 
+  double no = (double) rand()/(double) RAND_MAX;
+  for (int i = 0; i < underloaded_pe_count; i++) {
+    if (distribution[i] >= no) {
+      return i;
     }
-    return rec;
+  }
+  return -1;
 }
 
 void PackDropLB::PackSend(int pack_id, int one_time) {
@@ -351,6 +349,23 @@ void PackDropLB::SendLoadInfo() {
 
   delete[] p;
   delete[] l;
+}
+
+/*
+* The PEs have probabilities inversely proportional to their load. Construct a
+* CDF based on this. from DistributedLB.C
+*/
+void PackDropLB::CalculateCumulateDistribution() {
+  // The min loaded PEs have probabilities inversely proportional to their load.
+  double cumulative = 0.0;
+  for (int i = 0; i < underloaded_pe_count; i++) {
+    cumulative += (thr_avg - loads[i])/thr_avg;
+    distribution.push_back(cumulative);
+  }
+
+  for (int i = 0; i < underloaded_pe_count; i++) {
+    distribution[i] = distribution[i]/cumulative;
+  }
 }
 
 #include "PackDropLB.def.h"
