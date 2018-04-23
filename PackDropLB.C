@@ -52,7 +52,7 @@ void PackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     kPartialInfoCount = -1;
     
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
-    local_tasks.clear();
+    distribution.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
     
     my_load = 0;
