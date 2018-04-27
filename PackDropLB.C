@@ -2,7 +2,7 @@
   * Author: Vinicius Freitas
   * contact: vinicius.mct.freitas@gmail.com OR vinicius.mctf@grad.ufsc.br
   * Produced @ ECL - UFSC
-  * Newly developed strategy based on Harshita Menon's implementation of GrapevineLB  
+  * Gossip Protocol implementation by Harshitha Menon. From: $CHARM_DIR/src/ck-ldb/DistributedLB.C  
   */
 
 #include "PackDropLB.h"
@@ -52,7 +52,6 @@ void PackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     kPartialInfoCount = -1;
     
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
-    local_tasks.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
     
     //local_tasks.reserve(my_stat->n_objs);
@@ -67,6 +66,9 @@ void PackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     contribute(sizeof(double), &my_load, CkReduction::sum_double, cb);
 }
 
+/*
+ * Reduction used to calculate the average system load
+ */
 void PackDropLB::Load_Setup(double total_load) {
     // Calculating the average load of a pe, based on the total system load.
     avg_load = total_load/CkNumPes();
@@ -76,7 +78,9 @@ void PackDropLB::Load_Setup(double total_load) {
     contribute(sizeof(int), &chares, CkReduction::sum_int, cb);
 }
 
-
+/*
+ * Reduction used to calculate the number of chares in the system.
+ */
 void PackDropLB::Chare_Setup(int count) {
     chare_count = count;
     // packs.reserve(count/CkNumPes());
@@ -86,12 +90,16 @@ void PackDropLB::Chare_Setup(int count) {
     pack_load = avg_task_size*(2 - CkNumPes()/chare_count);
     
     // Mount Packs
+    // Important variables setup
     double ceil = avg_load*(1+threshold);
     double pack_floor = pack_load*(1-threshold);
     double pack_load_now = 0;
+ 
+    // Only performed by overloaded PEs
     if (my_load > ceil) {
         int pack_id = 0;
         packs[pack_id] = std::vector<int>();
+        // Pack creation process
         while (my_load > ceil) {
             Element t = local_tasks.top();
             packs[pack_id].push_back(t.id);
@@ -114,7 +122,6 @@ void PackDropLB::Chare_Setup(int count) {
         // Initialize the req_hop of the message to 0
         req_hop = 0;
         GossipLoadInfo(req_hop, CkMyPe(), 1, r_pe_no, r_loads);
-        //EndStep();
     }
     if (CkMyPe() == 0) {
         //CkPrintf("Starting QD\n");
@@ -123,11 +130,19 @@ void PackDropLB::Chare_Setup(int count) {
     }
 }
 
+/*
+ * Synchronization barrier after the Gossip Protocol
+ */
 void PackDropLB::First_Barrier() {
     //if (CkMyPe() == 0) CkPrintf("Done gossiping\n");
     LoadBalance();
 }
 
+/*
+ * Start of load balancing.
+ * Overloaded PEs will send their packs
+ * Underloaded PEs will wait
+ */
 void PackDropLB::LoadBalance() {
     // End of the comunication stage
     // if (CkMyPe() == 0) CkPrintf("-----------barrier-----------\n");
@@ -143,6 +158,9 @@ void PackDropLB::LoadBalance() {
     PackSend();
 }
 
+/*
+ * Generate list of underloaded processor with Gossip information
+ */
 void PackDropLB::CalculateReceivers() {
     double pack_ceil = pack_load*(1+threshold);
     double ceil = avg_load*(1+threshold);
@@ -153,6 +171,9 @@ void PackDropLB::CalculateReceivers() {
     }
 }
 
+/*
+ * Randomly select a pack receiver
+ */
 int PackDropLB::FindReceiver() {
     int rec;
     if (receivers.size() < CkNumPes()/4) {
@@ -169,6 +190,9 @@ int PackDropLB::FindReceiver() {
     return rec;
 }
 
+/*
+ * Pack sending process. First step of the Three-way Handshake.
+ */
 void PackDropLB::PackSend(int pack_id, int one_time) {
     tries++;
     if (tries >= 4) {
@@ -199,6 +223,9 @@ void PackDropLB::PackSend(int pack_id, int one_time) {
     }
 }
 
+/*
+ * Second step of the Three-way handshake
+ */
 void PackDropLB::PackAck(int id, int from, int psize, bool force) {
     // Sends back the info, with the apropriate bool related to wheter it's accepted or not
     // If the migration is forced, it will be accepted.
@@ -210,6 +237,9 @@ void PackDropLB::PackAck(int id, int from, int psize, bool force) {
     thisProxy[from].RecvAck(id, CkMyPe(), ack);
 }
 
+/*
+ * Third step of the Three-way handshake
+ */
 void PackDropLB::RecvAck(int id, int to, bool success) {
     if (success) {
         const std::vector<int> this_pack = packs.at(id);
@@ -303,7 +333,7 @@ void PackDropLB::DetailsRedux(int migs) {
   if (CkMyPe() <= 0) CkPrintf("[%d] Total number of migrations is %d\n", CkMyPe(), migs);
 }
 
-/*
+/* by Menon
 * Gossip load information between peers. Receive the gossip message.
 */
 void PackDropLB::GossipLoadInfo(int req_h, int from_pe, int n,
@@ -356,7 +386,7 @@ void PackDropLB::GossipLoadInfo(int req_h, int from_pe, int n,
   SendLoadInfo();
 }
 
-/*
+/* by Menon
 * Construct the gossip message and send to peers
 */
 void PackDropLB::SendLoadInfo() {
