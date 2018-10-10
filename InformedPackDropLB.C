@@ -2,10 +2,10 @@
   * Author: Vinicius Freitas
   * contact: vinicius.mct.freitas@gmail.com OR vinicius.mctf@grad.ufsc.br
   * Produced @ ECL - UFSC
-  * Newly developed strategy based on Harshita Menon's implementation of GrapevineLB  
+  * Newly developed strategy based on Harshita Menon's implementation of GrapevineLB
   */
 
-#include "PackDropMigCostLB.h"
+#include "InformedPackDropLB.h"
 #include "OrderedElement.h"
 #include "elements.h"
 #include <stdlib.h>
@@ -15,24 +15,24 @@
 #ifndef PD_LB_MIG_COST
 #define PD_LB_MIG_COST 8.0
 #endif
-  
-CreateLBFunc_Def(PackDropMigCostLB, "The distributed pack-based load balancer accounting for migration costs");
 
-PackDropMigCostLB::PackDropMigCostLB(CkMigrateMessage *m) : CBase_PackDropMigCostLB(m) {
+CreateLBFunc_Def(InformedPackDropLB, "The distributed pack-based load balancer accounting for migration costs");
+
+InformedPackDropLB::InformedPackDropLB(CkMigrateMessage *m) : CBase_InformedPackDropLB(m) {
 }
 
-PackDropMigCostLB::PackDropMigCostLB(const CkLBOptions &opt) : CBase_PackDropMigCostLB(opt) {
-  lbname = "PackDropMigCostLB";
+InformedPackDropLB::InformedPackDropLB(const CkLBOptions &opt) : CBase_InformedPackDropLB(opt) {
+  lbname = "InformedPackDropLB";
   if (CkMyPe() == 0)
-    CkPrintf("[%d] PackDropMigCostLB created\n",CkMyPe());
+    CkPrintf("[%d] InformedPackDropLB created\n",CkMyPe());
   InitLB(opt);
 }
 
-void PackDropMigCostLB::InitLB(const CkLBOptions &opt) {
-  thisProxy = CProxy_PackDropMigCostLB(thisgroup);
+void InformedPackDropLB::InitLB(const CkLBOptions &opt) {
+  thisProxy = CProxy_InformedPackDropLB(thisgroup);
 }
 
-void PackDropMigCostLB::Strategy(const DistBaseLB::LDStats* const stats) {
+void InformedPackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     if (CkMyPe() == 0) {
         CkPrintf("In PackDrop Strategy\n");
     }
@@ -51,14 +51,14 @@ void PackDropMigCostLB::Strategy(const DistBaseLB::LDStats* const stats) {
     pack_count = 0;
     total_migrates = 0;
     acks_needed = 0;
-    
+
     kMaxGossipMsgCount = 2 * CmiLog2(CkNumPes());
     kPartialInfoCount = -1;
-    
+
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
     local_tasks.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
-    
+
     my_load = 0;
     for (int i = 0; i < my_stats->n_objs; ++i) {
         if (my_stats->objData[i].migratable) {
@@ -66,24 +66,24 @@ void PackDropMigCostLB::Strategy(const DistBaseLB::LDStats* const stats) {
             my_load += my_stats->objData[i].wallTime;
         }
     }
-    CkCallback cb(CkReductionTarget(PackDropMigCostLB, Load_Setup), thisProxy);
+    CkCallback cb(CkReductionTarget(InformedPackDropLB, Load_Setup), thisProxy);
     contribute(sizeof(double), &my_load, CkReduction::sum_double, cb);
 }
 
-void PackDropMigCostLB::Load_Setup(double total_load) {
+void InformedPackDropLB::Load_Setup(double total_load) {
     avg_load = total_load/CkNumPes();
     int chares = my_stats->n_objs;
 
-    CkCallback cb(CkReductionTarget(PackDropMigCostLB, Chare_Setup),thisProxy);
+    CkCallback cb(CkReductionTarget(InformedPackDropLB, Chare_Setup),thisProxy);
     contribute(sizeof(int), &chares, CkReduction::sum_int, cb);
 }
 
 
-void PackDropMigCostLB::Chare_Setup(int count) {
+void InformedPackDropLB::Chare_Setup(int count) {
     chare_count = count;
     double avg_task_size = (CkNumPes()*avg_load)/chare_count;
     pack_load = avg_task_size*(2 - CkNumPes()/chare_count);
-    
+
     double ceil = avg_load*(1+threshold);
     double pack_floor = pack_load*(1-threshold);
     double pack_load_now = 0;
@@ -111,28 +111,28 @@ void PackDropMigCostLB::Chare_Setup(int count) {
         GossipLoadInfo(req_hop, CkMyPe(), 1, r_pe_no, r_loads);
     }
     if (CkMyPe() == 0) {
-        CkCallback cb(CkIndex_PackDropMigCostLB::First_Barrier(), thisProxy);
+        CkCallback cb(CkIndex_InformedPackDropLB::First_Barrier(), thisProxy);
         CkStartQD(cb);
     }
 }
 
-void PackDropMigCostLB::First_Barrier() {
+void InformedPackDropLB::First_Barrier() {
     LoadBalance();
 }
 
-void PackDropMigCostLB::LoadBalance() {
+void InformedPackDropLB::LoadBalance() {
     lb_started = true;
     if (packs.size() == 0) {
         msg = new(total_migrates,CkNumPes(),CkNumPes(),0) LBMigrateMsg;
         msg->n_moves = total_migrates;
-        contribute(CkCallback(CkReductionTarget(PackDropMigCostLB, Final_Barrier), thisProxy));
+        contribute(CkCallback(CkReductionTarget(InformedPackDropLB, Final_Barrier), thisProxy));
         return;
     }
     CalculateReceivers();
     PackSend();
 }
 
-void PackDropMigCostLB::CalculateReceivers() {
+void InformedPackDropLB::CalculateReceivers() {
     double pack_ceil = pack_load*(1+threshold);
     double ceil = avg_load*(1+threshold);
     for (size_t i = 0; i < pe_no.size(); ++i) {
@@ -140,25 +140,33 @@ void PackDropMigCostLB::CalculateReceivers() {
             receivers.push_back(pe_no[i]);
         }
     }
-}
 
-int PackDropMigCostLB::FindReceiver() {
-    int rec;
-    if (receivers.size() < CkNumPes()/4) {
-        rec = rand()%CkNumPes();
-        while (rec == CkMyPe()) {
-            rec = rand()%CkNumPes();
-        }
-    } else {
-        rec = receivers[rand()%receivers.size()];
-        while (rec == CkMyPe()) {
-            rec = receivers[rand()%receivers.size()];
-        } 
+    // The min loaded PEs have probabilities inversely proportional to their load.
+    double cumulative = 0.0;
+    int underloaded_pe_count = receivers.size();
+    distribution.clear();
+    distribution.reserve(underloaded_pe_count);
+    for (int i = 0; i < underloaded_pe_count; i++) {
+      cumulative += (thr_avg - loads[i])/thr_avg;
+      distribution.push_back(cumulative);
     }
-    return rec;
+
+    for (int i = 0; i < underloaded_pe_count; i++) {
+      distribution[i] = distribution[i]/cumulative;
+    }
 }
 
-void PackDropMigCostLB::PackSend(int pack_id, int one_time) {
+int InformedPackDropLB::FindReceiver() {
+  double no = (double) rand()/(double) RAND_MAX;
+  for (int i = 0; i < distribution.size(); i++) {
+    if (distribution[i] >= no) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void InformedPackDropLB::PackSend(int pack_id, int one_time) {
     tries++;
     if (tries >= 4) {
         if (_lb_args.debug()) CkPrintf("[%d] No receivers found\n", CkMyPe());
@@ -172,10 +180,10 @@ void PackDropMigCostLB::PackSend(int pack_id, int one_time) {
             continue;
         }
         int rand_rec = FindReceiver();
-        
+
         acks_needed++;
         thisProxy[rand_rec].PackAck(idp, CkMyPe(), packs[idp].size(), false);
-        
+
         if (one_time) {
             break;
         }
@@ -183,7 +191,7 @@ void PackDropMigCostLB::PackSend(int pack_id, int one_time) {
     }
 }
 
-double PackDropMigCostLB::RecalculateLoad(int n_tasks) {
+double InformedPackDropLB::RecalculateLoad(int n_tasks) {
   double new_load = pack_load;
   if (n_tasks > 1) {
     new_load += new_load*(n_tasks*PD_LB_MIG_COST)/64.0;
@@ -198,16 +206,16 @@ double PackDropMigCostLB::RecalculateLoad(int n_tasks) {
  * This will make the tasks heavier in the long term.
  * The weight of PD_LB_MIG_COST must be evaluated from application to application.
  */
-void PackDropMigCostLB::PackAck(int id, int from, int psize, bool force) {
+void InformedPackDropLB::PackAck(int id, int from, int psize, bool force) {
     bool ack = ((my_load + RecalculateLoad(psize) < avg_load*(1+threshold)) || force);
     if (ack) {
         migrates_expected+=psize;
-        my_load += RecalculateLoad(psize); 
+        my_load += RecalculateLoad(psize);
     }
     thisProxy[from].RecvAck(id, CkMyPe(), ack);
 }
 
-void PackDropMigCostLB::RecvAck(int id, int to, bool success) {
+void InformedPackDropLB::RecvAck(int id, int to, bool success) {
     if (success) {
         const std::vector<int> this_pack = packs.at(id);
         for (size_t i = 0; i < this_pack.size(); ++i) {
@@ -232,7 +240,7 @@ void PackDropMigCostLB::RecvAck(int id, int to, bool success) {
             }
             migrateInfo.clear();
             lb_end = true;
-            contribute(CkCallback(CkReductionTarget(PackDropMigCostLB, Final_Barrier), thisProxy));
+            contribute(CkCallback(CkReductionTarget(InformedPackDropLB, Final_Barrier), thisProxy));
         }
     } else {
         acks_needed--;
@@ -244,14 +252,14 @@ void PackDropMigCostLB::RecvAck(int id, int to, bool success) {
     }
 }
 
-void PackDropMigCostLB::ForcedPackSend(int id, bool force) {
+void InformedPackDropLB::ForcedPackSend(int id, bool force) {
     int rand_rec = FindReceiver();
     tries++;
     acks_needed++;
     thisProxy[rand_rec].PackAck(id, CkMyPe(), packs.at(id).size(), force);
 }
 
-void PackDropMigCostLB::EndStep() {
+void InformedPackDropLB::EndStep() {
     if (total_migrates < pack_count && tries < 8) {
         CkPrintf("[%d] Gotta migrate more: %d\n", CkMyPe(), tries);
         PackSend();
@@ -265,33 +273,33 @@ void PackDropMigCostLB::EndStep() {
         }
         migrateInfo.clear();
         lb_end = true;
-        contribute(CkCallback(CkReductionTarget(PackDropMigCostLB, Final_Barrier), thisProxy));
+        contribute(CkCallback(CkReductionTarget(InformedPackDropLB, Final_Barrier), thisProxy));
     }
 }
 
-void PackDropMigCostLB::Final_Barrier() {
+void InformedPackDropLB::Final_Barrier() {
     ProcessMigrationDecision(msg);
 }
 
 // TODO
-void PackDropMigCostLB::ShowMigrationDetails() {
+void InformedPackDropLB::ShowMigrationDetails() {
   if (total_migrates > 0)
     CkPrintf("[%d] migrating %d elements\n", CkMyPe(), total_migrates);
-  if (migrates_expected > 0) 
+  if (migrates_expected > 0)
     CkPrintf("[%d] receiving %d elements\n", CkMyPe(), migrates_expected);
-  
-  CkCallback cb (CkReductionTarget(PackDropMigCostLB, DetailsRedux), thisProxy);
+
+  CkCallback cb (CkReductionTarget(InformedPackDropLB, DetailsRedux), thisProxy);
   contribute(sizeof(int), &total_migrates, CkReduction::sum_int, cb);
 }
 
-void PackDropMigCostLB::DetailsRedux(int migs) {
+void InformedPackDropLB::DetailsRedux(int migs) {
   if (CkMyPe() <= 0) CkPrintf("[%d] Total number of migrations is %d\n", CkMyPe(), migs);
 }
 
 /*
 * Gossip load information between peers. Receive the gossip message.
 */
-void PackDropMigCostLB::GossipLoadInfo(int req_h, int from_pe, int n,
+void InformedPackDropLB::GossipLoadInfo(int req_h, int from_pe, int n,
     int remote_pe_no[], double remote_loads[]) {
   std::vector<int> p_no;
   std::vector<double> l;
@@ -339,7 +347,7 @@ void PackDropMigCostLB::GossipLoadInfo(int req_h, int from_pe, int n,
 /*
 * Construct the gossip message and send to peers
 */
-void PackDropMigCostLB::SendLoadInfo() {
+void InformedPackDropLB::SendLoadInfo() {
   if (gossip_msg_count > kMaxGossipMsgCount) {
     return;
   }
@@ -349,12 +357,12 @@ void PackDropMigCostLB::SendLoadInfo() {
   do {
     rand_nbor1 = rand() % CkNumPes();
   } while (rand_nbor1 == CkMyPe());
-  
+
   do {
     rand_nbor2 = rand() % CkNumPes();
   } while ((rand_nbor2 == CkMyPe()) || (rand_nbor2 == rand_nbor1));
 
-  
+
   int info_count = (kPartialInfoCount >= 0) ? kPartialInfoCount : pe_no.size();
   int* p = new int[info_count];
   double* l = new double[info_count];
@@ -372,4 +380,4 @@ void PackDropMigCostLB::SendLoadInfo() {
   delete[] l;
 }
 
-#include "PackDropMigCostLB.def.h"
+#include "InformedPackDropLB.def.h"

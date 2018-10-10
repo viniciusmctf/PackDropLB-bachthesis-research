@@ -2,7 +2,7 @@
   * Author: Vinicius Freitas
   * contact: vinicius.mct.freitas@gmail.com OR vinicius.mctf@grad.ufsc.br
   * Produced @ ECL - UFSC
-  * Newly developed strategy based on Harshita Menon's implementation of GrapevineLB  
+  * Newly developed strategy based on Harshita Menon's implementation of GrapevineLB
   */
 
 #include "PackDropLB.h"
@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <cstring>
 #include <algorithm>
-  
+
 CreateLBFunc_Def(PackDropLB, "The distributed load balancer");
 
 PackDropLB::PackDropLB(CkMigrateMessage *m) : CBase_PackDropLB(m) {
@@ -47,14 +47,14 @@ void PackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     pack_count = 0;
     total_migrates = 0;
     acks_needed = 0;
-    
+
     kMaxGossipMsgCount = 2 * CmiLog2(CkNumPes());
     kPartialInfoCount = -1;
-    
+
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
     distribution.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
-    
+
     my_load = 0;
     for (int i = 0; i < my_stats->n_objs; ++i) {
         if (my_stats->objData[i].migratable) {
@@ -79,7 +79,7 @@ void PackDropLB::Chare_Setup(int count) {
     chare_count = count;
     double avg_task_size = (CkNumPes()*avg_load)/chare_count;
     pack_load = avg_task_size*(2 - CkNumPes()/chare_count);
-    
+
     double ceil = avg_load*(1+threshold);
     double pack_floor = pack_load*(1-threshold);
     double pack_load_now = 0;
@@ -125,8 +125,8 @@ void PackDropLB::LoadBalance() {
         return;
     }
     underloaded_pe_count = pe_no.size();
-    CalculateCumulateDistribution();
-    //CalculateReceivers();
+    // CalculateCumulateDistribution();
+    CalculateReceivers();
     PackSend();
 }
 
@@ -140,16 +140,19 @@ void PackDropLB::CalculateReceivers() {
     }
 }
 
-
-// As seen in DistributedLB::PickRandReceiverPeIdx
 int PackDropLB::FindReceiver() {
-  double no = (double) rand()/(double) RAND_MAX;
-  for (int i = 0; i < underloaded_pe_count; i++) {
-    if (distribution[i] >= no) {
-      return i;
-    }
+  if (receivers.size() < CkNumPes()/4) {
+      rec = rand()%CkNumPes();
+      while (rec == CkMyPe()) {
+          rec = rand()%CkNumPes();
+      }
+  } else {
+      rec = receivers[rand()%receivers.size()];
+      while (rec == CkMyPe()) {
+          rec = receivers[rand()%receivers.size()];
+      }
   }
-  return -1;
+  return rec;
 }
 
 void PackDropLB::PackSend(int pack_id, int one_time) {
@@ -166,10 +169,10 @@ void PackDropLB::PackSend(int pack_id, int one_time) {
             continue;
         }
         int rand_rec = FindReceiver();
-        
+
         acks_needed++;
         thisProxy[rand_rec].PackAck(idp, CkMyPe(), packs[idp].size(), false);
-        
+
         if (one_time) {
             break;
         }
@@ -256,9 +259,9 @@ void PackDropLB::Final_Barrier() {
 void PackDropLB::ShowMigrationDetails() {
   if (total_migrates > 0)
     CkPrintf("[%d] migrating %d elements\n", CkMyPe(), total_migrates);
-  if (migrates_expected > 0) 
+  if (migrates_expected > 0)
     CkPrintf("[%d] receiving %d elements\n", CkMyPe(), migrates_expected);
-  
+
   CkCallback cb (CkReductionTarget(PackDropLB, DetailsRedux), thisProxy);
   contribute(sizeof(int), &total_migrates, CkReduction::sum_int, cb);
 }
@@ -328,12 +331,12 @@ void PackDropLB::SendLoadInfo() {
   do {
     rand_nbor1 = rand() % CkNumPes();
   } while (rand_nbor1 == CkMyPe());
-  
+
   do {
     rand_nbor2 = rand() % CkNumPes();
   } while ((rand_nbor2 == CkMyPe()) || (rand_nbor2 == rand_nbor1));
 
-  
+
   int info_count = (kPartialInfoCount >= 0) ? kPartialInfoCount : pe_no.size();
   int* p = new int[info_count];
   double* l = new double[info_count];

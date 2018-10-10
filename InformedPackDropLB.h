@@ -3,7 +3,7 @@
 
 // Charm includes
 #include "DistBaseLB.h"
-#include "PackDropMigCostLB.decl.h"
+#include "Informed.decl.h"
 
 // Data structures includes
 #include "OrderedElement.h"
@@ -17,12 +17,12 @@
 
 
 // Class definition
-void CreatePackDropMigCostLB();
+void CreateInformed();
 
-class PackDropMigCostLB : public CBase_PackDropMigCostLB {
+class Informed : public CBase_Informed {
  public:
-    PackDropMigCostLB(const CkLBOptions&);
-    PackDropMigCostLB(CkMigrateMessage *m);
+    Informed(const CkLBOptions&);
+    Informed(CkMigrateMessage *m);
     void Load_Setup(double total_load);
     void Chare_Setup(int count);
     void PackAck(int pack_id, int from, int psize, bool force);
@@ -78,9 +78,10 @@ class PackDropMigCostLB : public CBase_PackDropMigCostLB {
     std::vector<int> receivers;
     std::vector<int> pe_no;
     std::vector<double> loads;
+    std::vector<double> distribution;
     std::priority_queue<Element, std::deque<Element>> local_tasks;
     std::unordered_map<int, std::vector<int>> packs;
-    CProxy_PackDropMigCostLB thisProxy;
+    CProxy_InformedPackDropLB thisProxy;
 
 
 };

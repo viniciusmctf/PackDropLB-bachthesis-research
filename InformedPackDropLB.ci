@@ -1,10 +1,10 @@
-module PackDropMigCostLB {
+module InformedPackDropLB {
 
 extern module DistBaseLB;
 initnode void lbinit(void);
 
-group [migratable] PackDropMigCostLB : DistBaseLB {
-  entry void PackDropMigCostLB(const CkLBOptions &);  
+group [migratable] InformedPackDropLB : DistBaseLB {
+  entry void InformedPackDropLB(const CkLBOptions &);  
   entry [expedited] void PackAck(int pack_id, int from, int psize, bool force);
   entry [expedited] void RecvAck(int pack_id, int to, bool success);
   entry void EndStep();
