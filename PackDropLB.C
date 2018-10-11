@@ -141,6 +141,7 @@ void PackDropLB::CalculateReceivers() {
 }
 
 int PackDropLB::FindReceiver() {
+  int rec = 0;
   if (receivers.size() < CkNumPes()/4) {
       rec = rand()%CkNumPes();
       while (rec == CkMyPe()) {
@@ -361,8 +362,9 @@ void PackDropLB::SendLoadInfo() {
 void PackDropLB::CalculateCumulateDistribution() {
   // The min loaded PEs have probabilities inversely proportional to their load.
   double cumulative = 0.0;
+  double ub_load = 1.05*avg_load;
   for (int i = 0; i < underloaded_pe_count; i++) {
-    cumulative += (thr_avg - loads[i])/thr_avg;
+    cumulative += (ub_load - loads[i])/ub_load;
     distribution.push_back(cumulative);
   }
 

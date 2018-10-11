@@ -56,7 +56,6 @@ void InformedPackDropLB::Strategy(const DistBaseLB::LDStats* const stats) {
     kPartialInfoCount = -1;
 
     local_tasks = std::priority_queue<Element, std::deque<Element>>();
-    local_tasks.clear();
     srand((unsigned)CmiWallTimer()*CkMyPe()/CkNumPes());
 
     my_load = 0;
@@ -143,11 +142,12 @@ void InformedPackDropLB::CalculateReceivers() {
 
     // The min loaded PEs have probabilities inversely proportional to their load.
     double cumulative = 0.0;
+    double ub_load = 1.05*avg_load;
     int underloaded_pe_count = receivers.size();
     distribution.clear();
     distribution.reserve(underloaded_pe_count);
     for (int i = 0; i < underloaded_pe_count; i++) {
-      cumulative += (thr_avg - loads[i])/thr_avg;
+      cumulative += (ub_load - loads[i])/ub_load;
       distribution.push_back(cumulative);
     }
 

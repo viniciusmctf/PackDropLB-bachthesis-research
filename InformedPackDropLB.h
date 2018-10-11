@@ -3,7 +3,7 @@
 
 // Charm includes
 #include "DistBaseLB.h"
-#include "Informed.decl.h"
+#include "InformedPackDropLB.decl.h"
 
 // Data structures includes
 #include "OrderedElement.h"
@@ -17,12 +17,12 @@
 
 
 // Class definition
-void CreateInformed();
+void CreateInformedPackDropLB();
 
-class Informed : public CBase_Informed {
+class InformedPackDropLB : public CBase_InformedPackDropLB {
  public:
-    Informed(const CkLBOptions&);
-    Informed(CkMigrateMessage *m);
+    InformedPackDropLB(const CkLBOptions&);
+    InformedPackDropLB(CkMigrateMessage *m);
     void Load_Setup(double total_load);
     void Chare_Setup(int count);
     void PackAck(int pack_id, int from, int psize, bool force);
